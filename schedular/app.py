@@ -33,9 +33,7 @@ else:
     cursor1.execute('''SELECT * FROM api_ccpeolaco where is_transfer=False''')
     TML_UNIT_DATA = cursor1.fetchall()
     for i in TML_UNIT_DATA:
-        print(i)
         try:
-            # cursor2.execute(SQLCommand, i)
             i = list(i)
             i[11] = None
             values_ = """
@@ -62,12 +60,12 @@ else:
                 """
             cursor2.execute(values_, i)
 
-            cursor2.commit()
         except Exception as e:
             print(e)
         else:
             script_set = f"""UPDATE api_ccpeolaco SET is_transfer = True WHERE "UIN"='{i[5]}';"""
             cursor1.execute(script_set)
+            cursor2.commit()
             print('data updated')
 
 
