@@ -4,78 +4,106 @@ import psycopg2
 import pyodbc
 from dotenv import load_dotenv
 
-if env_var := load_dotenv(".env"):
-    # ----------------mssql------------------
-    server = os.environ.get('ms_server', None)
-    database = os.environ.get('ms_database', None)
-    username = os.environ.get('ms_username', None)
-    password = os.environ.get('ms_password', None)
+load_dotenv()
 
-    # ----------------postgres------------------
-    pg_user = os.environ.get('pg_user', None)
-    pg_password = os.environ.get('pg_password', None)
-    pg_host = os.environ.get('pg_host', None)
-    pg_database = os.environ.get('pg_database', None)
-    pg_port = os.environ.get('pg_port', None)
+env = os.environ
+
+server = env.get('server')
+database = env.get('database')
+username = env.get('username_')
+password = env.get('password')
+
+rds_user_name = env.get('rds_user_name')
+rds_password = env.get('rds_password')
+rds_host = env.get('rds_host')
+rds_port = env.get('rds_port')
+rds_database = env.get('rds_database')
+
+
+# print(rds_user_name, rds_password, rds_host, rds_port, rds_database)
+# print(server, database, username, password)
+
 
 try:
-    connection1 = psycopg2.connect(user=pg_user,password=pg_password, host=pg_host, port=pg_port, database=pg_database)
-    connection2 = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + server + ';DATABASE=' + database + ';UID=' + username + ';PWD=' + password)
+    postgres_db = psycopg2.connect(user=rds_user_name, password=rds_password, host=rds_host, port=rds_port, database=rds_database)
 
-    connection1.autocommit = True
+    mssql_db = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + server + ';DATABASE=' + database + ';UID=' + username + ';PWD=' + password)
 
-    cursor1 = connection1.cursor()
-    cursor2 = connection2.cursor()
+    postgres_db.autocommit = True
+
+    postgres_cursor = postgres_db.cursor()
+    mssql_cursor = mssql_db.cursor()
 except Exception as error:
     print("Error --", error)
 
 else:
-    cursor1.execute('''SELECT * FROM api_ccpeolaco where is_transfer=False''')
-    TML_UNIT_DATA = cursor1.fetchall()
+    postgres_cursor.execute('''
+    SELECT "TCUModel",
+         "IMEI",
+         "ICCID",
+         "TMLPN",
+         "ProdDate",
+         "UIN",
+         "TCUTestStatus",
+         "TCUFirmwareVersion",
+         "BootstrapExpDate",
+         "SIMServiceOperator",
+         "is_transfer",
+         null,
+         "created_on",
+         "emission_type",
+         null,
+         "sim_vendor"
+    FROM api_ccpeolaco where is_transfer=False''')
+
+    TML_UNIT_DATA = postgres_cursor.fetchall()
+    print(TML_UNIT_DATA)
     for i in TML_UNIT_DATA:
         try:
             i = list(i)
-            i[11] = None
-            values_ = """
-                INSERT INTO [dbo].[accolade_data]
-                       ([TCUModel]
-                       ,[IMEI]
-                       ,[ICCID]
-                       ,[TMLPN]
-                       ,[ProdDate]
-                       ,[UIN]
-                       ,[TCUTestStatus]
-                       ,[TCUFirmwareVersion]
-                       ,[BootstrapExpDate]
-                       ,[SIMServiceOperator]
-                       ,[is_transfer]
-                       ,[CERT_TIMESTAMP]
-                       ,[created_on]
-                       ,[emission_type]
-                       ,[modified_on]
-                       ,[sim_vendor])
-                VALUES
-                       (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-
+            values_ = f"""
+                if not exists( select [UIN] from [dbo].[accolade_data] where UIN='{i[5]}')
+                BEGIN
+                    INSERT INTO [dbo].[accolade_data]
+                           ([TCUModel]
+                           ,[IMEI]
+                           ,[ICCID]
+                           ,[TMLPN]
+                           ,[ProdDate]
+                           ,[UIN]
+                           ,[TCUTestStatus]
+                           ,[TCUFirmwareVersion]
+                           ,[BootstrapExpDate]
+                           ,[SIMServiceOperator]
+                           ,[is_transfer]
+                           ,[CERT_TIMESTAMP]
+                           ,[created_on]
+                           ,[emission_type]
+                           ,[modified_on]
+                           ,[sim_vendor])
+                    VALUES
+                           (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                END
                 """
-            cursor2.execute(values_, i)
+            mssql_cursor.execute(values_, i)
 
+            mssql_cursor.commit()
+            print("commit done ", i[5])
         except Exception as e:
             print(e)
         else:
             script_set = f"""UPDATE api_ccpeolaco SET is_transfer = True WHERE "UIN"='{i[5]}';"""
-            cursor1.execute(script_set)
-            cursor2.commit()
+            postgres_cursor.execute(script_set)
             print('data updated')
 
 
 finally:
-    if connection1:
-        cursor1.close()
-        connection1.close()
+    if postgres_db:
+        postgres_cursor.close()
+        postgres_db.close()
         print("PostgreSQL connection is closed")
 
-    if connection2:
-        cursor2.close()
-        connection2.close()
+    if mssql_db:
+        mssql_cursor.close()
+        mssql_db.close()
         print("MS SQL connection is closed")
