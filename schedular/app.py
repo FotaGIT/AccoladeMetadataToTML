@@ -48,12 +48,10 @@ else:
          "TCUFirmwareVersion",
          "BootstrapExpDate",
          "SIMServiceOperator",
-         "is_transfer",
          null,
-         "created_on",
          "emission_type",
-         null,
-         "sim_vendor"
+         "sim_vendor" ,
+         NOW()
     FROM api_ccpeolaco where is_transfer=False''')
 
     TML_UNIT_DATA = postgres_cursor.fetchall()
@@ -62,9 +60,9 @@ else:
         try:
             i = list(i)
             values_ = f"""
-                if not exists( select [UIN] from [dbo].[accolade_data] where UIN='{i[5]}')
+                if not exists( select [UIN] from [dbo].[ACCOLADE_DEVICE_DATA] where UIN='{i[5]}')
                 BEGIN
-                    INSERT INTO [dbo].[accolade_data]
+                    INSERT INTO [dbo].[ACCOLADE_DEVICE_DATA]
                            ([TCUModel]
                            ,[IMEI]
                            ,[ICCID]
@@ -75,14 +73,13 @@ else:
                            ,[TCUFirmwareVersion]
                            ,[BootstrapExpDate]
                            ,[SIMServiceOperator]
-                           ,[is_transfer]
                            ,[CERT_TIMESTAMP]
-                           ,[created_on]
                            ,[emission_type]
-                           ,[modified_on]
-                           ,[sim_vendor])
+                           ,[sim_vendor]
+                           ,[RecordCreatedDate]
+                           )
                     VALUES
-                           (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                           (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 END
                 """
             mssql_cursor.execute(values_, i)
