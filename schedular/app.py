@@ -23,19 +23,29 @@ rds_database = env.get('rds_database')
 # print(rds_user_name, rds_password, rds_host, rds_port, rds_database)
 # print(server, database, username, password)
 
+error_values_quiery = """
+    INSERT INTO Accolade_error (uin, error)
+    VALUES
+        (?,?);
+    """
+
+
 try:
     try:
         postgres_db = psycopg2.connect(user=rds_user_name, password=rds_password, host=rds_host, port=rds_port, database=rds_database)
-
         mssql_db = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + server + ';DATABASE=' + database + ';UID=' + username + ';PWD=' + password)
-
         postgres_db.autocommit = True
-
         postgres_cursor = postgres_db.cursor()
-
         mssql_cursor = mssql_db.cursor()
     except Exception as error:
         print("Error --", error)
+        error_values_quiery = """
+            INSERT INTO Accolade_error (uin, error)
+            VALUES
+                (?,?);
+            """
+        mssql_cursor.execute(error_values_quiery, (None, str(e)))
+        mssql_cursor.commit()
 
     else:
         postgres_cursor.execute('''
@@ -56,7 +66,7 @@ try:
         FROM api_ccpeolaco where is_transfer=False''')
 
         TML_UNIT_DATA = postgres_cursor.fetchall()
-        print(TML_UNIT_DATA)
+
         for i in TML_UNIT_DATA:
             UIN = i[5]
             try:
@@ -96,22 +106,23 @@ try:
                 print('data updated')
 
 
-    finally:
-        if postgres_db:
-            postgres_cursor.close()
-            postgres_db.close()
-            print("PostgreSQL connection is closed")
-
-        if mssql_db:
-            mssql_cursor.close()
-            mssql_db.close()
-            print("MS SQL connection is closed")
-except Exception as e:
-    error_values_quiery = """
-        INSERT INTO Tablename (uin, error)
-        VALUES
-            (?,?);
-        """
-    mssql_cursor.execute(error_values_quiery, (UIN or None, str(e)))
+except NameError as name_error:
+    print("Final Error name --", name_error)
+    mssql_cursor.execute(error_values_quiery, (None, str(name_error)))
     mssql_cursor.commit()
 
+except Exception as e:
+    print("Final Error --", e)
+    mssql_cursor.execute(error_values_quiery, (UIN, str(e)))
+    mssql_cursor.commit()
+
+finally:
+    if postgres_db:
+        postgres_cursor.close()
+        postgres_db.close()
+        print("PostgreSQL connection is closed")
+
+    if mssql_db:
+        mssql_cursor.close()
+        mssql_db.close()
+        print("MS SQL connection is closed")
